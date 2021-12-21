@@ -1,0 +1,7 @@
+exe.win-amd64-3.9
+__pycache__
+romfs*
+build*
+main*
+mod1*
+mod2*
