@@ -5,6 +5,11 @@ from os import path, makedirs, remove
     
     
 outputPath = "merged"
+inputMain = "main"
+inputMod1 = "mod1"
+inputMod2 = "mod2"
+
+fileList = [outputPath, inputMain, inputMod1, inputMod2]
     
 ##I have no idea how else I would compare things, maybe line by line?
 def compareMonoBehaviour(file1, file2):
@@ -121,8 +126,12 @@ def getkeys(*argv):
 if __name__ == "__main__":
     start_time = time.time()
     
-    if not path.exists(outputPath):
-            makedirs(outputPath, 0o666)
+    for path in fileList:
+        if not path.exists(path):
+            makedirs(path, 0o666)
+        print("Created folder 'main', 'mod1', 'mod2' put unedited in main, and the two mods you want to merge in mod1 and mod2 respectively")
+        print("Merged is the output folder")
+        input("Once all files are in, press enter to continue...")
     
     main = "main"
     mod1 = "mod1"
