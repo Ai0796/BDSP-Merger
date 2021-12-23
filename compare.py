@@ -1,9 +1,12 @@
 import UnityPy
 import glob
 import time
-from os import path
-   
+from os import path, makedirs, remove
     
+    
+outputPath = "merged"
+    
+##I have no idea how else I would compare things, maybe line by line?
 def compareMonoBehaviour(file1, file2):
     diffList = []
     treeList = []
@@ -22,9 +25,7 @@ def compareMonoBehaviour(file1, file2):
             if tree["m_Name"] in nameList:
                 index = nameList.index(tree["m_Name"])
                 if treeList[index] != tree:
-                    diffList.append(tree["m_Name"])
-                    print("Changes")
-                    print(tree["m_Name"])
+                    diffList.append(obj.path_id)
                     
     return diffList
 
@@ -53,20 +54,117 @@ def compareDirectories(main, mod1, mod2):
             print("Found in main")
         else:
             print("Error in folder mod2 {} not found".format(file))
+            
+def removeDuplicates(list1, list2):
+    newList1 = [] ##Used so we don't have to delete variables while iterating
+    duplicates = []
+    for i in list1:
+        
+        if i in list2:
+            list2.remove(i)
+            duplicates.append(i)
+        else:
+            newList1.append(i)
+            
+    return newList1, list2, duplicates
+
+##Edits opened main file with modified mods
+def replaceAssets(mainFile, modFile, treeIDs):
+    
+    treeDic = {}
+    
+    for obj in modFile.objects:
+        if obj.type.name == "MonoBehaviour":
+            if obj.path_id in treeIDs:
+                tree = obj.read_typetree()
+                
+                treeDic[tree['m_Name']] = tree
+    
+    for obj in mainFile.objects:
+        if obj.type.name == "MonoBehaviour":
+            if obj.path_id in treeIDs:
+                tree = obj.read_typetree()
+                
+                newTree = treeDic[tree['m_Name']]
+                obj.save_typetree(newTree)
+            
+            
+def getNameFromPathID(assetbundle, pathID):
+    
+    for obj in assetbundle.objects:
+        if obj.path_id == pathID:
+            tree = obj.read_typetree()
+            return tree["m_Name"]
+        
+    return "?"
+
+def getkeys(*argv):
+    keyList = []
+    compareList = argv[0]
+    for key in compareList:
+        
+        present = True
+        
+        for arg in argv:
+            if key not in arg:
+                present = False
+                break
+            
+        if present:
+            keyList.append(key)
+            
+    return keyList
+        
     
 
 
-start_time = time.time()
-main = "main"
-mod1 = "mod1"
-mod2 = "mod2"
+if __name__ == "__main__":
+    start_time = time.time()
+    
+    if not path.exists(outputPath):
+            makedirs(outputPath, 0o666)
+    
+    main = "main"
+    mod1 = "mod1"
+    mod2 = "mod2"
 
-mainFiles = search(main)
-mod1Files = search(mod1)
-mod2Files = search(mod2)
+    mainFiles = search(main)
+    mod1Files = search(mod1)
+    mod2Files = search(mod2)
+    
+    mainKeys = list(mainFiles.keys())
+    mod1Keys = list(mod1Files.keys())
+    mod2Keys = list(mod2Files.keys())
+    
+    keys = getkeys(mainKeys, mod1Keys, mod2Keys)
+    
+    for key in keys:
+        
+        print(f"Replacing {key}")
 
-mainEnv = UnityPy.load(main)
-modded1Env = UnityPy.load(mod1)
+        mainFile = mainFiles[key]
+        mod1File = mod1Files[key]
+        mod2File = mod2Files[key]
 
-compareMonoBehaviour(mainEnv, modded1Env)
-print("My program took", time.time() - start_time, "seconds to run")
+
+        mainEnv = UnityPy.load(mainFile)
+        modded1Env = UnityPy.load(mod1File)
+        modded2Env = UnityPy.load(mod2File)
+
+        diffList1 = compareMonoBehaviour(mainEnv, modded1Env)
+        diffList2 = compareMonoBehaviour(mainEnv, modded2Env)
+        cleanDiffList1, cleanDiffList2, duplicates = removeDuplicates(diffList1, diffList2)
+        for duplicate in duplicates:
+            name = getNameFromPathID(main, duplicate)
+            print("Asset {} is different in both mods, and cannot be merged".format(name))
+        print(diffList1)
+        print(diffList2)
+        replaceAssets(mainEnv, modded1Env, diffList1)
+        replaceAssets(mainEnv, modded2Env, diffList2)
+        
+            
+        filepath = path.join(outputPath, key)
+        with open(filepath, "wb") as f:
+            f.write(mainEnv.file.save(packer=(64, 2)))
+    
+    print("Merging took", time.time() - start_time, "seconds to run")
